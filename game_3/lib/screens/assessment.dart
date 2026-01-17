@@ -5,6 +5,7 @@ import '../games/wait_for_your_turn.dart';
 import '../games/game_4/story_reading.dart';
 import '../games/step_builder.dart';
 import '../models/assessment_models.dart';
+import 'completion_screen.dart';
 
 class AssessmentFlow extends StatefulWidget {
   final int ageGroup;
@@ -154,6 +155,24 @@ class _AssessmentFlowState extends State<AssessmentFlow> {
   }
 
   void showFinalReport() {
+    // Navigate to the completion screen with audio and video
+    if (cognitiveProfile != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CompletionScreen(
+            cognitiveProfile: cognitiveProfile!,
+          ),
+        ),
+      );
+    } else {
+      // Fallback to dialog if cognitive profile is not available
+      showCompletionDialog();
+    }
+  }
+
+  // Fallback dialog method
+  void showCompletionDialog() {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -274,106 +293,6 @@ class _AssessmentFlowState extends State<AssessmentFlow> {
                 const SizedBox(height: 20),
               ],
               
-              // ===== GAME-BY-GAME RESULTS =====
-              const Text(
-                "📊 Detailed Results",
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              
-              // === WAIT FOR YOUR TURN RESULTS ===
-              const Text(
-                "⏳ Impulse Control (Wait For Your Turn)",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue,
-                ),
-              ),
-              const SizedBox(height: 8),
-              _buildResultRow(
-                "Total Correct Taps",
-                "${waitingResult!.reactionTimes.length}",
-              ),
-              _buildResultRow(
-                "Premature Taps",
-                "${waitingResult!.prematureTaps}",
-              ),
-              _buildResultRow(
-                "Avg Reaction Time",
-                "${waitingResult!.avgReaction.toStringAsFixed(0)} ms",
-              ),
-              _buildResultRow(
-                "Reaction Variability",
-                "${waitingResult!.reactionVariability.toStringAsFixed(0)} ms",
-              ),
-              _buildResultRow(
-                "Total Trials",
-                "${waitingResult!.totalTrials}",
-              ),
-
-              const SizedBox(height: 20),
-
-              // === STORY READING RESULTS ===
-              const Text(
-                "📖 Reading Attention (Story Reading)",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green,
-                ),
-              ),
-              const SizedBox(height: 8),
-              _buildResultRow(
-                "Pages Read",
-                "${storyResult!.pagesRead}",
-              ),
-              _buildResultRow(
-                "Pages Skipped",
-                "${storyResult!.pagesSkipped}",
-              ),
-              _buildResultRow(
-                "Avg Read Time",
-                "${storyResult!.avgReadTime.toStringAsFixed(0)} ms",
-              ),
-              _buildResultRow(
-                "Skip Rate",
-                "${(storyResult!.skipRate * 100).toStringAsFixed(1)}%",
-              ),
-
-              const SizedBox(height: 20),
-
-              // === STEP BUILDER RESULTS ===
-              const Text(
-                "🏗️ Organization & Planning (Step Builder)",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.orange,
-                ),
-              ),
-              const SizedBox(height: 8),
-              _buildResultRow(
-                "Steps Skipped",
-                "${stepResult!.stepsSkipped}",
-              ),
-              _buildResultRow(
-                "Order Errors",
-                "${stepResult!.orderErrors}",
-              ),
-              _buildResultRow(
-                "Task Completed",
-                stepResult!.taskCompleted ? "✅ Yes" : "❌ No",
-              ),
-              _buildResultRow(
-                "Avg Step Time",
-                "${stepResult!.stepPlacementTimes.isEmpty ? 0 : (stepResult!.stepPlacementTimes.reduce((a, b) => a + b) / stepResult!.stepPlacementTimes.length).toStringAsFixed(0)} ms",
-              ),
-
-              const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(

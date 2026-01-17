@@ -219,9 +219,10 @@ class _WaitForYourTurn4State extends State<WaitForYourTurn4> {
         behavior: HitTestBehavior.opaque,
         onTap: handleTap,
         child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
               // Phase indicator
               Container(
                 padding:
@@ -310,6 +311,7 @@ class _WaitForYourTurn4State extends State<WaitForYourTurn4> {
                 ),
               ),
             ],
+            ),
           ),
         ),
       ),
