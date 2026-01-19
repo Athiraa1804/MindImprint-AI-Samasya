@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'dart:html' as html show AudioElement;
+import 'dart:js_interop';
+import 'package:web/web.dart' as web show HTMLAudioElement, Event;
 
 class CompletionScreen extends StatefulWidget {
   final Map<String, dynamic> cognitiveProfile;
@@ -14,18 +15,21 @@ class CompletionScreen extends StatefulWidget {
 }
 
 class _CompletionScreenState extends State<CompletionScreen> {
-  late html.AudioElement audioElement;
+  late web.HTMLAudioElement audioElement;
   bool isAudioPlaying = false;
 
   @override
   void initState() {
     super.initState();
-    audioElement = html.AudioElement('assets/sounds/completion_chime.mp3');
-    audioElement.onEnded.listen((_) {
+    audioElement = web.HTMLAudioElement();
+    audioElement.src = 'assets/sounds/completion_chime.mp3';
+    // Wrap the callback with JSExportedDartFunction
+    final callback = (web.Event event) {
       if (mounted) {
         setState(() => isAudioPlaying = false);
       }
-    });
+    }.toJS;
+    audioElement.addEventListener('ended', callback);
     _playCompletionAudio();
   }
 
@@ -53,10 +57,10 @@ class _CompletionScreenState extends State<CompletionScreen> {
         elevation: 0,
         centerTitle: true,
       ),
-      body: WillPopScope(
-        onWillPop: () async {
-          Navigator.pop(context);
-          return false;
+      body: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop) Navigator.pop(context);
         },
         child: SingleChildScrollView(
           child: Padding(
@@ -194,6 +198,26 @@ class _CompletionScreenState extends State<CompletionScreen> {
                     widget.cognitiveProfile['cognitive_profile']['memory_organization'],
                   ),
 
+                const SizedBox(height: 24),
+
+                // 🤖 ML BEHAVIORAL PATTERN ANALYSIS
+                if (widget.cognitiveProfile['ml_prediction'] != null)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "🤖 AI BEHAVIORAL PATTERN ANALYSIS",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.deepPurple,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildMLProfileCard(widget.cognitiveProfile['ml_prediction']),
+                    ],
+                  ),
+
                 // Recommendation
                 if (widget.cognitiveProfile['recommendation'] != null)
                   Column(
@@ -272,6 +296,193 @@ class _CompletionScreenState extends State<CompletionScreen> {
     );
   }
 
+  Widget _buildMLProfileCard(dynamic mlPrediction) {
+    if (mlPrediction == null || mlPrediction is! Map) {
+      return const SizedBox.shrink();
+    }
+
+    final profile = mlPrediction['profile'] ?? 'N/A';
+    final confidence = mlPrediction['confidence'] ?? 0.0;
+    final riskLevel = mlPrediction['risk_level'] ?? 'Unknown';
+
+    // Profile descriptions - using "exhibits characteristics" language
+    final profileDescriptions = {
+      'Normal': 'Child exhibits typical behavioral patterns across assessed domains.',
+      'ADHD-Like':
+          'Child exhibits characteristics commonly associated with attention and impulse control challenges.',
+      'Gifted':
+          'Child exhibits characteristics commonly associated with high ability and advanced cognitive skills.',
+      'Learning-Disability':
+          'Child exhibits characteristics commonly associated with learning processing differences.',
+      'Mixed-Profile':
+          'Child exhibits a combination of characteristics across multiple behavioral domains.',
+    };
+
+    final profileDescription = profileDescriptions[profile] ?? 'Assessment pattern identified.';
+
+    // Risk level colors
+    final riskColors = {
+      'Low': Colors.green,
+      'Moderate': Colors.orange,
+      'High': Colors.red,
+    };
+
+    final riskColor = riskColors[riskLevel] ?? Colors.grey;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.deepPurple.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.deepPurple.shade300, width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Profile Type with Emoji
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Behavioral Pattern:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      profile,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.deepPurple,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text(
+                    'Confidence:',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black54,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.deepPurple,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${(confidence * 100).toStringAsFixed(0)}%',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Description
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.deepPurple.shade200),
+            ),
+            child: Text(
+              profileDescription,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Colors.black87,
+                height: 1.5,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Risk Level
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Support Level:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: riskColor.withValues(alpha: 0.2),
+                        border: Border.all(color: riskColor, width: 2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        riskLevel,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: riskColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Disclaimer
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.shade200),
+            ),
+            child: Text(
+              '📌 Note: This assessment identifies behavioral patterns observed during gameplay. It is not a diagnosis and should be discussed with qualified professionals for clinical evaluation.',
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.blue[900],
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCognitiveDomainCard(
       String title, Color color, dynamic domainData) {
     if (domainData == null) {
@@ -290,9 +501,9 @@ class _CompletionScreenState extends State<CompletionScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.5)),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -8,9 +8,44 @@ import os
 import requests
 import hashlib
 from threading import Thread
+import pickle
+import numpy as np
 
 app = Flask(__name__)
 CORS(app)
+
+# ════════════════════════════════════════════════════════════════
+# 🤖 LOAD ML MODEL (Behavioral Profile Classifier)
+# ════════════════════════════════════════════════════════════════
+ML_MODEL = None
+ML_SCALER = None
+ML_FEATURE_NAMES = [
+    'impulsivity', 'attention', 'memory_org',
+    'reaction_speed_normalized', 'reaction_variability_normalized',
+    'skip_rate', 'task_completion_rate', 'avg_accuracy'
+]
+ML_PROFILE_CLASSES = ['Normal', 'ADHD-Like', 'Learning-Disability', 'Gifted', 'Mixed-Profile']
+
+def load_ml_model():
+    """Load pre-trained ML model and scaler"""
+    global ML_MODEL, ML_SCALER
+    try:
+        model_path = os.path.join(os.path.dirname(__file__), 'behavioral_model.pkl')
+        scaler_path = os.path.join(os.path.dirname(__file__), 'feature_scaler.pkl')
+        
+        if os.path.exists(model_path) and os.path.exists(scaler_path):
+            with open(model_path, 'rb') as f:
+                ML_MODEL = pickle.load(f)
+            with open(scaler_path, 'rb') as f:
+                ML_SCALER = pickle.load(f)
+            debugPrint(f"✅ ML Model loaded successfully")
+            return True
+        else:
+            debugPrint(f"⚠️ ML Model files not found. Run ml_model_trainer.py first")
+            return False
+    except Exception as e:
+        debugPrint(f"❌ Error loading ML model: {e}")
+        return False
 
 # ────────────────────── NARRATIVE CACHE (Speed Optimization) ──────────────────────
 NARRATIVE_CACHE = {}  # Cache generated narratives to avoid regenerating
@@ -271,6 +306,80 @@ def _fallback_narrative(domain_name, level):
 def debugPrint(msg):
     """Print debug message (compatibility with Flask logging)"""
     print(f"[AI] {msg}")
+
+# ════════════════════════════════════════════════════════════════
+# 🤖 ML PREDICTION FUNCTION
+# ════════════════════════════════════════════════════════════════
+
+def predict_ml_profile(impulsivity, attention, memory_org, reaction_speed, 
+                       reaction_variability, skip_rate, task_completion_rate, avg_accuracy):
+    """
+    Use ML model to predict behavioral profile
+    
+    Returns:
+        {
+            'profile': 'ADHD-Like',
+            'confidence': 0.92,
+            'probabilities': {...},
+            'risk_level': 'High'
+        }
+    """
+    if ML_MODEL is None or ML_SCALER is None:
+        return None
+    
+    try:
+        # Normalize reaction times
+        reaction_speed_norm = max(0.0, min(1.0, (reaction_speed - 200) / 300))
+        reaction_var_norm = max(0.0, min(1.0, reaction_variability / 200))
+        
+        # Create feature vector
+        features = np.array([[
+            impulsivity,
+            attention,
+            memory_org,
+            reaction_speed_norm,
+            reaction_var_norm,
+            skip_rate,
+            task_completion_rate,
+            avg_accuracy
+        ]])
+        
+        # Scale
+        features_scaled = ML_SCALER.transform(features)
+        
+        # Predict
+        profile = ML_MODEL.predict(features_scaled)[0]
+        probabilities = ML_MODEL.predict_proba(features_scaled)[0]
+        confidence = probabilities.max()
+        
+        # Get probability distribution
+        prob_dict = {
+            profile_class: float(prob)
+            for profile_class, prob in zip(ML_PROFILE_CLASSES, probabilities)
+        }
+        
+        # Get risk level
+        risk_levels = {
+            'Normal': 'Low',
+            'Gifted': 'Low',
+            'Mixed-Profile': 'Moderate',
+            'Learning-Disability': 'Moderate',
+            'ADHD-Like': 'High'
+        }
+        risk_level = risk_levels.get(profile, 'Unknown')
+        
+        debugPrint(f"🤖 ML Prediction: {profile} (Confidence: {confidence:.1%})")
+        
+        return {
+            'profile': profile,
+            'confidence': float(confidence),
+            'probabilities': prob_dict,
+            'risk_level': risk_level
+        }
+    
+    except Exception as e:
+        debugPrint(f"⚠️ ML prediction error: {e}")
+        return None
 
 # ════════════════════════════════════════════════════════════════
 # �🧠 ENHANCED AI: COGNITIVE PROFILE ANALYSIS
@@ -572,8 +681,26 @@ def save_session():
         story_game = data.get("story_reading", {})
         step_game = data.get("step_builder", {})
 
-        # ──── Generate Enhanced Cognitive Profile ────
+        # ──── Generate Enhanced Cognitive Profile (Rule-Based) ────
         cognitive_profile = generate_cognitive_profile(wait_game, story_game, step_game)
+        
+        # ──── ML PREDICTION (AI-Based) ────
+        ml_prediction = None
+        if ML_MODEL is not None:
+            ml_prediction = predict_ml_profile(
+                impulsivity=cognitive_profile["cognitive_profile"]["impulsivity"]["score"],
+                attention=cognitive_profile["cognitive_profile"]["attention"]["score"],
+                memory_org=cognitive_profile["cognitive_profile"]["memory_organization"]["score"],
+                reaction_speed=wait_game.get("avg_reaction", 350),
+                reaction_variability=wait_game.get("reaction_variability", 0),
+                skip_rate=story_game.get("skip_rate", 0),
+                task_completion_rate=1.0 if step_game.get("task_completed", False) else 0.5,
+                avg_accuracy=1.0 - cognitive_profile["cognitive_profile"]["memory_organization"]["score"]
+            )
+            
+            # Add ML prediction to cognitive profile
+            if ml_prediction:
+                cognitive_profile["ml_prediction"] = ml_prediction
 
         # ──── Create Analysis Summary ────
         analysis_scores = {
@@ -582,6 +709,9 @@ def save_session():
             "overall_level": cognitive_profile["overall_level"],
             "recommendation": cognitive_profile["recommendation"],
         }
+        
+        if ml_prediction:
+            analysis_scores["ml_profile"] = ml_prediction
 
         # ──── Save to Database ────
         conn = sqlite3.connect(DATABASE)
@@ -614,11 +744,19 @@ def save_session():
         }
 
         print(f"✅ Session saved: {session_id}")
-        print(f"🧠 Cognitive Profile:")
+        print(f"🧠 Cognitive Profile (Rule-Based):")
         print(f"   Impulsivity: {cognitive_profile['cognitive_profile']['impulsivity']['level']}")
         print(f"   Attention: {cognitive_profile['cognitive_profile']['attention']['level']}")
         print(f"   Memory/Org: {cognitive_profile['cognitive_profile']['memory_organization']['level']}")
         print(f"   Overall: {cognitive_profile['overall_level']}")
+        
+        if ml_prediction:
+            print(f"\n🤖 ML Prediction (AI-Based):")
+            print(f"   Profile: {ml_prediction['profile']}")
+            print(f"   Confidence: {ml_prediction['confidence']:.1%}")
+            print(f"   Risk Level: {ml_prediction['risk_level']}")
+            print(f"   Top Probability: {max(ml_prediction['probabilities'].values()):.1%}")
+
 
         return jsonify(response), 200
 
@@ -723,16 +861,25 @@ def get_session(session_id):
 
 @app.route("/")
 def home():
+    model_status = "✅ Loaded" if ML_MODEL else "⚠️ Not loaded"
     return jsonify({
         "status": "running",
         "version": "2.0",
+        "ml_status": model_status,
         "features": [
             "/analyze - Legacy endpoint",
-            "/save_session - Save complete session",
+            "/save_session - Save complete session with ML prediction",
             "/get_sessions - Get all sessions",
             "/get_session/<id> - Get session details",
         ]
     })
 
 if __name__ == "__main__":
+    # Load ML model on startup
+    print("="*60)
+    print("🚀 Starting MindImprint Backend")
+    print("="*60)
+    load_ml_model()
+    print()
     app.run(debug=True)
+

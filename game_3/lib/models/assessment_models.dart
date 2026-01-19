@@ -124,12 +124,51 @@ class StepGameResult {
 }
 
 // ════════════════════════════════════════════════════════════════
-// ✅ COMPLETE SESSION RESULT (All 3 games)
+// ✅ FIND THE STAR GAME METRICS
+// ════════════════════════════════════════════════════════════════
+class FindStarGameResult {
+  final int starsFound;
+  final int totalMisclicks;
+  final List<int> timesPerStar;
+  final double avgTimePerStar;
+  final DateTime startTime;
+  final DateTime endTime;
+  final int ageGroup;
+
+  FindStarGameResult({
+    required this.starsFound,
+    required this.totalMisclicks,
+    required this.timesPerStar,
+    required this.avgTimePerStar,
+    required this.startTime,
+    required this.endTime,
+    required this.ageGroup,
+  });
+
+  // Convert to JSON for backend
+  Map<String, dynamic> toJson() {
+    return {
+      "game_id": "find_the_star",
+      "age_group": ageGroup,
+      "stars_found": starsFound,
+      "total_misclicks": totalMisclicks,
+      "times_per_star": timesPerStar,
+      "avg_time_per_star": avgTimePerStar,
+      "start_time": startTime.toIso8601String(),
+      "end_time": endTime.toIso8601String(),
+      "duration_seconds": endTime.difference(startTime).inSeconds,
+    };
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// ✅ COMPLETE SESSION RESULT (All games)
 // ════════════════════════════════════════════════════════════════
 class AssessmentSessionResult {
   final WaitingGameResult waitingResult;
   final StoryGameResult storyResult;
   final StepGameResult stepResult;
+  final FindStarGameResult? findStarResult;
   final int ageGroup;
   final DateTime sessionStart;
   final DateTime sessionEnd;
@@ -138,6 +177,7 @@ class AssessmentSessionResult {
     required this.waitingResult,
     required this.storyResult,
     required this.stepResult,
+    this.findStarResult,
     required this.ageGroup,
     required this.sessionStart,
     required this.sessionEnd,
@@ -154,6 +194,7 @@ class AssessmentSessionResult {
       "wait_for_your_turn": waitingResult.toJson(),
       "story_reading": storyResult.toJson(),
       "step_builder": stepResult.toJson(),
+      if (findStarResult != null) "find_the_star": findStarResult!.toJson(),
     };
   }
 

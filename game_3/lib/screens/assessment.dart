@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import '../games/wait_for_your_turn.dart';
 import '../games/game_4/story_reading.dart';
 import '../games/step_builder.dart';
+import '../games/find_the_star.dart';
 import '../models/assessment_models.dart';
 import 'completion_screen.dart';
 
@@ -20,8 +21,9 @@ class _AssessmentFlowState extends State<AssessmentFlow> {
   WaitingGameResult? waitingResult;
   StoryGameResult? storyResult;
   StepGameResult? stepResult;
+  FindStarGameResult? findStarResult;
   bool isLoading = false;
-  int currentGameIndex = 0; // ✅ Track which game to show (0=Wait, 1=Story, 2=Step, 3=Done)
+  int currentGameIndex = 0; // ✅ Track which game (0=Wait, 1=Story, 2=Step, 3=Star, 4=Done)
   Map<String, dynamic>? cognitiveProfile; // ✅ Store AI analysis
 
   @override
@@ -53,7 +55,16 @@ class _AssessmentFlowState extends State<AssessmentFlow> {
     debugPrint("✅ STEP GAME RESULT RECEIVED");
     setState(() {
       stepResult = result;
-      currentGameIndex = 3; // Move to completion
+      currentGameIndex = 3; // Move to Game 4 (Find the Star)
+    });
+  }
+
+  // ✅ NEW: Callback when Game 4 finishes
+  void onFindStarGameFinished(FindStarGameResult result) {
+    debugPrint("✅ FIND THE STAR GAME RESULT RECEIVED");
+    setState(() {
+      findStarResult = result;
+      currentGameIndex = 4; // Move to completion
     });
     // Automatically send data and show report
     sendSessionDataToBackend();
@@ -79,6 +90,12 @@ class _AssessmentFlowState extends State<AssessmentFlow> {
         ageGroup: widget.ageGroup,
         onGameFinished: onStepGameFinished,
       );
+    } else if (currentGameIndex == 3) {
+      // Show Game 4: Find the Star
+      return FindTheStarGame(
+        ageGroup: widget.ageGroup,
+        onGameFinished: onFindStarGameFinished,
+      );
     } else {
       // Show loading/completion
       return Scaffold(
@@ -95,7 +112,7 @@ class _AssessmentFlowState extends State<AssessmentFlow> {
   // SEND COMPLETE SESSION DATA TO FLASK BACKEND
   // ════════════════════════════════════════════════════════════════
   Future<void> sendSessionDataToBackend() async {
-    if (waitingResult == null || storyResult == null || stepResult == null) {
+    if (waitingResult == null || storyResult == null || stepResult == null || findStarResult == null) {
       debugPrint("❌ Missing game results");
       return;
     }
@@ -108,9 +125,10 @@ class _AssessmentFlowState extends State<AssessmentFlow> {
         waitingResult: waitingResult!,
         storyResult: storyResult!,
         stepResult: stepResult!,
+        findStarResult: findStarResult,
         ageGroup: widget.ageGroup,
         sessionStart: waitingResult!.startTime,
-        sessionEnd: stepResult!.endTime,
+        sessionEnd: findStarResult!.endTime,
       );
 
       // Send to Flask backend
